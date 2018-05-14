@@ -1,81 +1,139 @@
-function [ hSubplots, hFigure, hTitle ] = amprej_multitrialplot( cfg, data, rejTrials )
-%UNTITLED8 Summary of this function goes here
+function [ badtrialsindex, h ] = amprej_multitrialplot( cfg, data, badtrials )
+%[ badtrialsindex, h ] = amprej_multitrialplot( cfg, data, badtrials )
 %   Detailed explanation goes here
 
 
 %default figure title
-if isempty(cfg) || ~isfield(cfg,'title')
+if isempty(cfg) || ~isfield(cfg,'title') || isempty(cfg.title)
     titletext = '';
 else
     titletext = cfg.title;
 end
 
 %default drawnow option
-if isempty(cfg) || ~isfield(cfg,'drawnow')
+if isempty(cfg) || ~isfield(cfg,'drawnow') || isempty(cfg.drawnow)
     dodrawnow = true;
 else
     dodrawnow = istrue(cfg.drawnow);
 end
 
-
-%assume same number of channels and samples across trials ...
-nChans = size(data.trial{1},1);
-nSamples = size(data.trial{1},2);
-nTrials = length(data.trial);
-
-%store trials into 3-D matrix
-trialMatrix = nan(nChans, nSamples, nTrials);
-for iTrial = 1:nTrials
-    trialMatrix(:,:,iTrial) = data.trial{iTrial}(:,:);
+%retro-compatibility
+if ~isempty(cfg) && isfield(cfg,'yLim')
+    cfg.ylim = cfg.yLim;
 end
 
-%store time array (again, assume same number of samples across trials)
-timeVector = data.time{1};
+%default y-axis limits
+if isempty(cfg) || ~isfield(cfg,'ylim') || isempty(cfg.ylim)
+    ylimits = [-1 1]*5e-12;
+else
+    ylimits = cfg.ylim;
+end
 
-%free up space?
-clear data
+%default channel downsampling
+if isempty(cfg) || ~isfield(cfg,'chandownsamp') || isempty(cfg.chandownsamp)
+    chandownsamp = 2; %1 = no downsampling
+else
+    chandownsamp = cfg.chandownsamp;
+end
 
+%default time downsampling
+if isempty(cfg) || ~isfield(cfg,'timedownsamp') || isempty(cfg.timedownsamp)
+    timedownsamp = 10; %1 = no downsampling
+else
+    timedownsamp = cfg.timedownsamp;
+end
 
-%define plot limits
-yLim = cfg.yLim;
+%define trials
+numtrials = length(data.trial);
 
-%define subplot columns and rows
-% nRows = cfg.nRows;
-nRows = 10;% ceil(nTrials/10);
-% nCols = cfg.nCols;
-nCols = ceil(nTrials/10);
+%retro-compatibility
+if nargin > 2
+    if islogical(badtrials)
+        badtrialsindex = find(badtrials);
+    else
+        badtrialsindex = badtrials;
+    end
+else
+    %default bad trials index
+    if isempty(cfg) || ~isfield(cfg,'badtrialsindex') || isempty(cfg.badtrialsindex)
+        badtrialsindex = [];
+    else
+        badtrialsindex = cfg.badtrialsindex;
+    end
+end
 
-%define color for rejected trials
-% rejColor = cfg.rejColor;
-rejColor = [215 48 31]./255;
+%default colour for bad trials
+if isempty(cfg) || ~isfield(cfg,'badtrialscolor') || isempty(cfg.badtrialscolor)
+    badtrialscolor = [215 48 31]./255;
+else
+    badtrialscolor = cfg.badtrialscolor;
+end
 
+%default number of subplot rows
+if isempty(cfg) || ~isfield(cfg,'numrows') || isempty(cfg.numrows)
+    numrows = 10;
+else
+    numrows = cfg.numrows;
+end
 
+%default number of subplot columns
+if isempty(cfg) || ~isfield(cfg,'numcolumns') || isempty(cfg.numcolumns)
+    numcolumns = ceil(numtrials/10);
+else
+    numcolumns = cfg.numcolumns;
+end
 
+%default interactive mode
+if isempty(cfg) || ~isfield(cfg,'interactive') || isempty(cfg.interactive)
+    interactive = cfg.interactive;
+else
+    interactive = istrue(cfg.interactive);
+end
 
-% close all
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%store time array (assume same number of samples across trials)
+samplesindex = 1:timedownsamp:size(data.time{1},2);
+samplestimes = data.time{1}(1,samplesindex);
+numsamples = length(samplestimes);
+
+%store channel array (assume same number of samples across trials)
+channelsindex = 1:chandownsamp:size(data.trial{1},1);
+numchannels = length(channelsindex);
+
+%store trials into 3-D matrix
+trialmatrix = nan(numchannels, numsamples, numtrials);
+for t = 1:numtrials
+    trialmatrix(1:numchannels,1:numsamples,t) = data.trial{t}(channelsindex,samplesindex);
+end
+% clear data
+clear t
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 figure
-hFigure = gcf;
-hFigure.Units = 'centimeters';
-hFigure.Position = [1 1 2*nCols+1 2*nRows+1];
-hFigure.Color = [1 1 1];
+h.figure = gcf;
+h.figure.Units = 'centimeters';
+h.figure.Position = [0 3 2*numcolumns+1 2*numrows+1];
+h.figure.Color = [1 1 1];
 
 if ~dodrawnow
     fprintf('plotting trials, please wait...\n')
 end
 
-hSubplots = nan(nTrials,1);
-for iTrial = 1:nTrials
+h.subplots = nan(numtrials,1);
+for t = 1:numtrials
     
     %draw sublot
-    subplot(nRows, nCols, iTrial)
+    subplot(numrows, numcolumns, t)
     
     %define axis properties
     hS = gca;
-    hS.YLim = yLim;
-    hS.XLim = [timeVector(1) timeVector(end)];% [1 nSamples];
-    % hS.YTick = yLim;
+    hS.YLim = ylimits;
+    hS.XLim = [samplestimes(1) samplestimes(end)];
+    % hS.YTick = ylimits;
     hS.XTick = [];
-    if iTrial ~=1, hS.YTickLabel = {''}; end
+    if t~=1, hS.YTickLabel = {''}; end
     hS.XTickLabel = {''};
     hS.Box = 'on';
     hS.Layer = 'bottom';
@@ -83,10 +141,10 @@ for iTrial = 1:nTrials
     hS.Units = 'normalized';
     
     %differentiate trials to reject from trials to keep
-    if rejTrials(iTrial) == true
+    if ismember(t, badtrialsindex)
         hS.LineWidth = 2;
-        hS.XColor = rejColor;
-        hS.YColor = rejColor;
+        hS.XColor = badtrialscolor;
+        hS.YColor = badtrialscolor;
     else
         hS.LineWidth = 0.5;
         hS.XColor = [.25 .25 .25];
@@ -94,36 +152,35 @@ for iTrial = 1:nTrials
     end
     
     %plot overlaid channels for given trial
-    for iChan = 1:nChans
-        
-        trialData = squeeze(trialMatrix(iChan,:,iTrial));
-        
+    for c = 1:numchannels
         hold on
-        plot(timeVector, trialData, 'Color',[0 0 0], 'LineWidth',0.5)
-        
+        plot(samplestimes, squeeze(trialmatrix(c,:,t)), 'Color',[0 0 0], 'LineWidth',0.5)
     end
-    clear trialData
     
     %add trial numbers
-    hText = text(0.05, 0.85, num2str(iTrial), 'Parent',hS, 'Units','normalized');
+    hText = text(0.05, 0.85, num2str(t), 'Parent',hS, 'Units','normalized');
     hText.FontSize = 8;
     
-    if dodrawnow
-        drawnow
-    end
+    %draw or not
+    if dodrawnow, drawnow; end
     
-    hSubplots(iTrial) = hS;
+    %add tag
+    hS.Tag = num2str(t);
     
+    %subplot handle
+    h.subplots(t) = hS;
     
 end
-
-% hS = get(hSubplots(1));
-% hS.YTick = yLim;
-% hS.YTickLabel = {num2str(yLim(1)) num2str(yLim(2))};
 
 %draw title
-hTitle = suptitle(titletext);
-hTitle.FontSize = 12;
+h.title = suptitle(titletext);
+h.title.FontSize = 10;
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%% interactive %%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+if interactive
+    subplothandles = h.subplots;
+    badtrialsindex = init_multitrialplot_interactive(cfg, subplothandles, badtrialsindex);
 end
+
+end%function
