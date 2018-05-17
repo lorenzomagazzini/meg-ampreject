@@ -23,12 +23,20 @@ nsubj = length(file_list);
 %%
 
 %define subj from list
-s = 1;
+s = 3
 subj_label = strrep(file_list{s}, '_data.mat', '');
 
 %load data
 cd(data_path)
 data = load(file_list{s});
+
+%%
+
+clear badtrialsindex
+badtrialsindex_file = fullfile(data_path, [subj_label '_cls-multitrial.mat']);
+if exist(badtrialsindex_file,'file')
+    load(badtrialsindex_file)
+end
 
 %%
 
@@ -52,6 +60,13 @@ cfgplot.numcolumns = [];
 
 cfgplot.ylim = [-1 1]*5e-12;
 cfgplot.interactive = 'yes';
+
+%use bad trials index if exists
+if exist('badtrialsindex','var')
+    cfgplot.badtrialsindex = badtrialsindex;
+else
+    cfgplot.badtrialsindex = [];
+end
 
 %plot highpass trials
 [badtrialsindex, h] = amprej_multitrialplot(cfgplot, data_lp);
